@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Lock, User, Eye, EyeOff, LogIn, AlertCircle } from "lucide-react";
+import { Lock, User, Eye, EyeOff, LogIn, AlertCircle, Building2 } from "lucide-react";
 import { AppConfig } from "../types";
 
 interface LoginViewProps {
@@ -54,23 +54,45 @@ export default function LoginView({ onLoginSuccess, config, isDark }: LoginViewP
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/5 rounded-full blur-xl -ml-16 -mb-16 pointer-events-none" />
 
             <div className="relative z-10">
-              {/* Person Icon in Circle */}
-              <div className="inline-flex p-3.5 bg-white/10 border border-white/10 rounded-full w-fit mb-8 sm:mb-12 shadow-inner">
-                <User className="size-6 text-white" />
+			        <div className="flex items-center gap-3.5 mb-8 sm:mb-12">
+                {/* Person Icon in Circle */}
+                  <div className="inline-flex p-1.5 bg-white/10 border border-white/10 rounded-full w-fit shadow-inner">
+                    {config.logoSekolah ? (
+                    <img
+                      src={config.logoSekolah}
+                      alt="Logo"
+                      className="size-10 object-contain"
+                      priority
+                    />
+                    ) : (
+                    <div className="size-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                      <Building2 className="size-5.5" />
+                    </div>
+                    )}
+
+                  </div>
+                <div>
+                <h1 className="text-white font-bold text-base sm:text-lg leading-tight tracking-wide">
+                  {config.namaSekolah || "Toko Berkah"}
+                </h1>
+                <p className="text-[#D4AF37] text-xs font-medium tracking-wider">
+                  {config.alamatSekolah}
+                </p>
+                </div>
               </div>
-
+              
               {/* Headings */}
-              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
-                Selamat Datang di
-              </h2>
-              <h1 className="text-3xl sm:text-4xl font-black text-amber-305 tracking-tight leading-tight mt-1 mb-5 drop-shadow-sm uppercase">
-                {config.namaSekolah || "Toko Berkah"}
-              </h1>
+                  <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-0">
+                    SIPENA School
+                  </h2>
+                  <p className="text-white/95 text-[10px] leading-relaxed max-w-sm font-small mb-4">
+                    Sistem Informasi Pembayaran dan Administrasi Sekolah
+                  </p>
 
-              {/* Descriptive Text */}
-              <p className="text-white/95 text-xs sm:text-sm leading-relaxed max-w-sm font-medium">
-                Sistem SPP & Manajemen Kasir otomatis yang terintegrasi secara real-time antar perangkat dan cloud Google Sheets.
-              </p>
+                {/* Descriptive Text */}
+                <p className="text-white/95 text-xs sm:text-sm leading-relaxed max-w-sm font-medium">
+                  Sistem SPP & Manajemen Kasir otomatis yang terintegrasi secara real-time antar perangkat dan cloud Google Sheets.
+                </p>
             </div>
           </div>
 
@@ -174,8 +196,8 @@ export default function LoginView({ onLoginSuccess, config, isDark }: LoginViewP
         </div>
 
         {/* Footer Attribution */}
-        <div className={`text-center mt-8 text-[10px] font-medium tracking-wide uppercase transition-colors duration-300 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-          Sistem Keuangan Kasir & SPP Sekolah v1.2. All Rights Reserved.
+        <div className={`text-center mt-4 text-[10px] font-medium tracking-wide transition-colors duration-300 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+          &copy; Customized by rizkialil &bull; All Rights Reserved.
         </div>
 
       </div>
