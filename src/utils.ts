@@ -127,12 +127,7 @@ export const DAFTAR_BULAN = [
  * List of academic years available in the system
  */
 export const DAFTAR_TAHUN_PELAJARAN = [
-  "2023/2024",
-  "2024/2025",
-  "2025/2026",
-  "2026/2027",
-  "2027/2028",
-  "2028/2029"
+  "2026/2027"
 ];
 
 /**
