@@ -169,8 +169,8 @@ export default function StudentsView({
   };
 
   const processFile = (file: File) => {
-    if (!file.name.endsWith(".csv")) {
-      alert("Hanya berkas format .csv yang diperbolehkan!");
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      alert("Untuk impor, gunakan berkas CSV. Template Excel dapat dipakai sebagai lembar kerja lalu simpan sebagai CSV sebelum diunggah.");
       return;
     }
     setCsvFileName(file.name);
@@ -207,15 +207,16 @@ export default function StudentsView({
   };
 
   const downloadCSVTemplate = () => {
-    const headers = "nis,nama,kelas,angkatan,tagihanSpp,emailOrangTua,teleponOrangTua\n";
+    // Titik-koma lebih mudah dibaca Excel pada regional Indonesia. BOM menjaga UTF-8.
+    const headers = "nis;nama;kelas;angkatan;tagihanSpp;emailOrangTua;teleponOrangTua\n";
     const rows = [
-      "2026010,Ahmad Fauzi,X-IPA-1,2026,350000,fauzi.ortu@gmail.com,08123456789",
-      "2026011,Budi Hartono,X-IPS-1,2026,350000,budi.ortu@gmail.com,0818273645",
-      "2026012,Citra Handayani,XI-IPA-1,2026,350000,citra.ortu@gmail.com,0852736456",
+      "2026010;Ahmad Fauzi;X-IPA-1;2026;350000;fauzi.ortu@gmail.com;08123456789",
+      "2026011;Budi Hartono;X-IPS-1;2026;350000;budi.ortu@gmail.com;0818273645",
+      "2026012;Citra Handayani;XI-IPA-1;2026;350000;citra.ortu@gmail.com;0852736456"
     ].join("\n");
-    
-    const csvContent = headers + rows;
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    const csvContent = "\uFEFF" + headers + rows;
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
@@ -223,6 +224,7 @@ export default function StudentsView({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const executeImport = () => {
@@ -676,7 +678,7 @@ export default function StudentsView({
             }`}
           >
             <Upload className="size-4" />
-            Impor Massal (CSV)
+            Impor Massal (CSV / Excel)
           </button>
 
           <button
@@ -697,10 +699,10 @@ export default function StudentsView({
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Upload className="size-4.5 text-blue-400" />
-                Impor Massal Siswa via Berkas CSV
+                Impor Massal Siswa via Berkas CSV / Excel
               </h3>
               <p className="text-[11px] text-slate-400 mt-1">
-                Daftarkan siswa baru sekaligus dengan mudah menggunakan file CSV.
+                Daftarkan siswa baru sekaligus dengan mudah menggunakan template yang kolomnya sudah terpisah.
               </p>
             </div>
             <button
@@ -734,6 +736,14 @@ export default function StudentsView({
                 <Download className="size-4 text-blue-400" />
                 Unduh Template CSV
               </button>
+              <a
+                href="/template_impor_siswa.xlsx"
+                download
+                className="mt-2 flex items-center gap-2 justify-center py-2 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded-lg text-xs font-bold border border-emerald-500/20 transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet className="size-4" />
+                Unduh Template Excel
+              </a>
             </div>
 
             {/* Step 2: Upload Excel/CSV */}
@@ -776,7 +786,7 @@ export default function StudentsView({
                       Seret berkas CSV ke sini, atau <span className="text-blue-400 font-bold hover:underline">Pilih dari Komputer</span>
                     </p>
                     <p className="text-[10px] text-slate-400 mt-1">
-                      Maksimal ukuran file 5 MB format .csv dengan pemisah koma/titik-koma
+                      Maksimal ukuran file 5 MB. Isi template Excel, lalu simpan sebagai CSV sebelum diunggah. Pemisah koma/titik-koma didukung
                     </p>
                   </div>
                 )}
