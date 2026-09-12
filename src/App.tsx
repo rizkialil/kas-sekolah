@@ -599,6 +599,58 @@ export default function App() {
     }
   };
 
+  // Refresh shared data automatically when the tab becomes active and every
+  // 30 seconds. The manual "Tarik" button remains available for an immediate
+  // forced refresh, but normal use no longer depends on it.
+  useEffect(() => {
+    let disposed = false;
+    let refreshInFlight = false;
+
+    const readSheetUrl = () => {
+      try {
+        const stored = localStorage.getItem("KAS_SEKOLAH_CONFIG");
+        const storedConfig = stored ? JSON.parse(stored) : {};
+        return storedConfig.sheetUrl || (import.meta.env.VITE_GOOGLE_SHEET_URL as string | undefined) || "";
+      } catch {
+        return (import.meta.env.VITE_GOOGLE_SHEET_URL as string | undefined) || "";
+      }
+    };
+
+    const refreshFromSheet = async () => {
+      if (disposed || refreshInFlight || document.visibilityState === "hidden") return;
+
+      const sheetUrl = readSheetUrl();
+      if (!sheetUrl) return;
+
+      refreshInFlight = true;
+      try {
+        await testSheetConnection(sheetUrl, [], [], [], [], false);
+      } finally {
+        refreshInFlight = false;
+      }
+    };
+
+    const refreshWhenActive = () => {
+      window.setTimeout(() => {
+        void refreshFromSheet();
+      }, 0);
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshFromSheet();
+    }, 30000);
+
+    window.addEventListener("focus", refreshWhenActive);
+    document.addEventListener("visibilitychange", refreshWhenActive);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshWhenActive);
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+    };
+  }, []);
+
   const syncConfigToSheet = async (
     targetConfig: AppConfig,
     username?: string,
