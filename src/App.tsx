@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Siswa, Transaksi, AppConfig, BiayaSekolah, NotifikasiLog } from "./types";
 import { SEED_SISWA, SEED_TRANSAKSI } from "./seedData";
-import { formatRupiah, normalizePhoneNumber } from "./utils";
+import { formatRupiah, normalizePhoneNumber, getOnlyDate } from "./utils";
 
 const safeSetItem = (key: string, value: string) => {
   try {
@@ -83,6 +83,7 @@ export default function App() {
   const [notificationLogs, setNotificationLogs] = useState<NotifikasiLog[]>([]);
   const [config, setConfig] = useState<AppConfig>({
     sheetUrl: (import.meta.env.VITE_GOOGLE_SHEET_URL as string | undefined) || "",
+    tahunPelajaran: "2026/2027",
     namaSekolah: "SMA Nusantara Mandiri",
     alamatSekolah: "Jl. Diponegoro No. 45, Coblong, Kota Bandung, Jawa Barat",
     teleponSekolah: "(022) 250-1234",
@@ -126,6 +127,7 @@ export default function App() {
 
   // General settings modal state
   const [setOpenNama, setSetOpenNama] = useState("");
+  const [setOpenTahunPelajaran, setSetOpenTahunPelajaran] = useState("2026/2027");
   const [setOpenAlamat, setSetOpenAlamat] = useState("");
   const [setOpenTelepon, setSetOpenTelepon] = useState("");
   const [setOpenPenerima, setSetOpenPenerima] = useState("");
@@ -753,8 +755,14 @@ export default function App() {
     // Save both simultaneously to prevent stale state server overwrites
     saveLocalDatabaseState(updatedSiswa, updatedTrx);
 
-    // 3. Trigger receipt view modal instantly
-    setActiveReceipt(newTransaction);
+    // 3. Tampilkan semua transaksi siswa pada tanggal yang sama dalam satu kuitansi.
+    const transaksiHariIni = updatedTrx.filter((trx) =>
+      trx.siswaId === newTransaction.siswaId && getOnlyDate(trx.tanggal) === getOnlyDate(newTransaction.tanggal)
+    );
+    setActiveReceipt(transaksiHariIni.length > 1
+      ? { ...newTransaction, transaksiGabungan: transaksiHariIni }
+      : newTransaction
+    );
     setSelectedSiswaIdForPayment(undefined); // Clear navigation parameter state
 
     // 4. Sync transaction row to Sheets Web App in background
@@ -940,6 +948,7 @@ export default function App() {
   // Trigger modal settings edit
   const openSchoolSettings = () => {
     setSetOpenNama(config.namaSekolah);
+    setSetOpenTahunPelajaran(config.tahunPelajaran || "2026/2027");
     setSetOpenAlamat(config.alamatSekolah);
     setSetOpenTelepon(config.teleponSekolah);
     setSetOpenPenerima(config.penerimaDefault);
@@ -960,8 +969,15 @@ export default function App() {
 
   const handleSaveSchoolSettings = (e: React.FormEvent) => {
     e.preventDefault();
+    const normalizedTahunPelajaran = setOpenTahunPelajaran.trim();
+    if (!/^\d{4}\/\d{4}$/.test(normalizedTahunPelajaran)) {
+      alert("Format tahun pelajaran harus seperti 2026/2027.");
+      return;
+    }
+
     const updated = {
       ...config,
+      tahunPelajaran: normalizedTahunPelajaran,
       namaSekolah: setOpenNama,
       alamatSekolah: setOpenAlamat,
       teleponSekolah: setOpenTelepon,
@@ -1257,7 +1273,15 @@ export default function App() {
                   transaksiList={transaksiList}
                   config={config}
                   onNavigateToPayment={handleNavigateToPayment}
-                  onReprintReceipt={(trx) => setActiveReceipt(trx)}
+                  onReprintReceipt={(trx) => {
+                    const transaksiHariIni = transaksiList.filter((item) =>
+                      item.siswaId === trx.siswaId && getOnlyDate(item.tanggal) === getOnlyDate(trx.tanggal)
+                    );
+                    setActiveReceipt(transaksiHariIni.length > 1
+                      ? { ...trx, transaksiGabungan: transaksiHariIni }
+                      : trx
+                    );
+                  }}
                   onDeleteTransaction={handleDeleteTransaction}
                 />
               )}
@@ -1415,6 +1439,21 @@ export default function App() {
                   onChange={(e) => setSetOpenNama(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 text-white font-semibold rounded-xl text-xs focus:ring-blue-400 focus:bg-slate-900/65 focus:outline-none focus:ring-2 focus:border-transparent"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-300">Tahun Pelajaran Aktif</label>
+                <input
+                  type="text"
+                  required
+                  pattern="\d{4}/\d{4}"
+                  title="Gunakan format seperti 2026/2027"
+                  value={setOpenTahunPelajaran}
+                  onChange={(e) => setSetOpenTahunPelajaran(e.target.value)}
+                  placeholder="Contoh: 2026/2027"
+                  className="w-full px-3.5 py-2.5 bg-white/5 border border-blue-500/30 text-white font-semibold rounded-xl text-xs focus:ring-blue-400 focus:bg-slate-900/65 focus:outline-none focus:ring-2 focus:border-transparent"
+                />
+                <p className="text-[10px] text-slate-400">Dipakai sebagai tahun pelajaran utama pada loket SPP dan tersimpan ke Google Sheet.</p>
               </div>
 
               <div className="space-y-1">
