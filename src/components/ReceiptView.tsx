@@ -94,6 +94,15 @@ export function formatIndonesianDateTime(date: Date): string {
 export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewProps) {
   if (!transaksi) return null;
 
+  const receiptTransactions = transaksi.transaksiGabungan && transaksi.transaksiGabungan.length > 0
+    ? transaksi.transaksiGabungan
+    : [transaksi];
+  const receiptTransaction = receiptTransactions[receiptTransactions.length - 1] || transaksi;
+  const receiptIsCombined = receiptTransactions.length > 1;
+  const receiptTotal = receiptTransactions.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
+  const receiptHasOutstanding = receiptTransactions.some((item) => Number(item.sisaTunggakan || 0) > 0);
+  const receiptPaymentLabel = receiptIsCombined ? "Gabungan " + receiptTransactions.length + " transaksi" : receiptTransaction.jenisPembayaran;
+
   const [selectedTempat, setSelectedTempat] = useState<string>("");
   const [selectedTanggal, setSelectedTanggal] = useState<string>("");
   const [isRealtime, setIsRealtime] = useState<boolean>(true);
@@ -126,8 +135,8 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
   const qrisPayload = generateQRISString(
     config.namaSekolah,
     config.alamatSekolah.split(",")[0] || "BANDUNG",
-    transaksi.jumlah,
-    transaksi.id,
+    receiptTotal,
+    receiptTransaction.id + (receiptIsCombined ? "-GAB" : ""),
     config.merchantId
   );
 
@@ -234,7 +243,7 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
           <div className="bg-slate-900/95 border border-white/10 p-6 md:p-8 rounded-xl shadow-xl relative overflow-hidden text-slate-100">
             {/* Stamp Watermark Background */}
             <div className="absolute right-12 bottom-12 opacity-5 pointer-events-none rotate-12 select-none">
-              {transaksi.sisaTunggakan && transaksi.sisaTunggakan > 0 ? (
+              {receiptHasOutstanding && !receiptIsCombined ? (
                 <div className="border-4 border-amber-500 rounded-full size-40 flex items-center justify-center flex-col text-amber-500 font-bold tracking-widest text-center border-dashed p-2">
                   <span className="text-xl">BELUM LUNAS</span>
                   <span className="text-[10px]">{config.namaSekolah}</span>
@@ -266,9 +275,9 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
               </div>
               <div className="text-left md:text-right flex flex-col gap-0.5 md:items-end">
                 <span className="inline-flex px-2.5 py-1 rounded bg-emerald-500/15 text-emerald-400 text-xs font-semibold uppercase tracking-wide border border-emerald-500/20">
-                  Bukti Pembayaran {transaksi.metode}
+                  Bukti Pembayaran {receiptIsCombined ? "Gabungan" : receiptTransaction.metode}
                 </span>
-                <span className="text-xs font-mono text-slate-400 mt-2">No: {transaksi.id}</span>
+                <span className="text-xs font-mono text-slate-400 mt-2">No: {receiptTransaction.id}</span>
                 <span className="text-xs text-slate-400">Tanggal: {selectedTanggal}</span>
               </div>
             </div>
@@ -277,46 +286,56 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
             <div className="py-6 space-y-4 text-sm">
               <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-2">
                 <div className="text-slate-400 font-medium font-sans">Telah Diterima Dari</div>
-                <div className="col-span-2 text-white font-semibold">{transaksi.siswaNama}</div>
+                <div className="col-span-2 text-white font-semibold">{receiptTransaction.siswaNama}</div>
               </div>
 
               <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-2">
                 <div className="text-slate-400 font-medium font-sans">NIS / Kelas</div>
                 <div className="col-span-2 text-slate-100 font-mono">
-                  {transaksi.siswaNis} <span className="text-white/20 font-sans mx-2">|</span> {transaksi.siswaKelas}
+                  {receiptTransaction.siswaNis} <span className="text-white/20 font-sans mx-2">|</span> {receiptTransaction.siswaKelas}
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-2">
                 <div className="text-slate-400 font-medium font-sans">Untuk Pembayaran</div>
                 <div className="col-span-2 text-white font-semibold flex items-center gap-2">
-                  <span>{transaksi.jenisPembayaran}</span>
-                  {transaksi.bulanCovered && (
+                  <span>{receiptPaymentLabel}</span>
+                  {receiptIsCombined ? (
+                    <div className="col-span-2 mt-1 space-y-1">
+                      {receiptTransactions.map((item) => (
+                        <div key={item.id} className="text-xs text-slate-300 border-l-2 border-blue-500/40 pl-2">
+                          <span className="font-semibold">{item.jenisPembayaran}</span>
+                          {item.bulanCovered ? " - " + formatBulanIndo(item.bulanCovered) : ""}
+                          <span className="ml-2 font-mono text-emerald-300">{formatRupiah(item.jumlah)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : receiptTransaction.bulanCovered ? (
                     <span className="text-blue-400 bg-blue-500/15 border border-blue-500/20 text-xs px-2.5 py-0.5 rounded font-bold uppercase tracking-wider text-[10px]">
-                      SPP Bulan {formatBulanIndo(transaksi.bulanCovered)}
+                      SPP Bulan {formatBulanIndo(receiptTransaction.bulanCovered)}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-2">
                 <div className="text-slate-400 font-medium font-sans">Jumlah Uang</div>
                 <div className="col-span-2 space-y-1">
-                  {transaksi.sisaTunggakan && transaksi.sisaTunggakan > 0 ? (
+                  {receiptHasOutstanding && !receiptIsCombined ? (
                     <>
                       <div className="text-slate-300 text-xs font-sans">
-                        Nilai Tagihan Asli: <span className="font-mono font-semibold">{formatRupiah(transaksi.originalTagihan || 0)}</span>
+                        Nilai Tagihan Asli: <span className="font-mono font-semibold">{formatRupiah(receiptTransaction.originalTagihan || 0)}</span>
                       </div>
                       <div className="text-emerald-400 font-mono font-bold text-base">
-                        Dibayar Sekarang: {formatRupiah(transaksi.jumlah)}
+                        Dibayar Sekarang: {formatRupiah(receiptTotal)}
                       </div>
                       <div className="text-red-400 text-xs font-semibold font-sans">
-                        Sisa Tagihan: <span className="font-mono">{formatRupiah(transaksi.sisaTunggakan)}</span>
+                        Sisa Tagihan: <span className="font-mono">{formatRupiah(receiptTransaction.sisaTunggakan)}</span>
                       </div>
                     </>
                   ) : (
                     <div className="text-emerald-400 font-mono font-bold text-base">
-                      {formatRupiah(transaksi.jumlah)}
+                      {formatRupiah(receiptTotal)}
                     </div>
                   )}
                 </div>
@@ -325,7 +344,7 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
               <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-2">
                 <div className="text-slate-400 font-medium font-sans">Terbilang</div>
                 <div className="col-span-2 text-slate-305 italic font-medium bg-white/5 p-2 rounded-lg text-xs leading-relaxed border border-white/5 animate-fade-in text-slate-300">
-                  {terbilang(transaksi.jumlah)}
+                  {terbilang(receiptTotal)}
                 </div>
               </div>
 
@@ -333,7 +352,7 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
                 <div className="text-slate-400 font-medium font-sans">Metode Bayar</div>
                 <div className="col-span-2 text-slate-100">
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    {transaksi.metode}
+                    {receiptIsCombined ? "Gabungan" : receiptTransaction.metode}
                   </span>
                 </div>
               </div>
@@ -341,7 +360,7 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
               <div className="grid grid-cols-3 gap-2 pb-2">
                 <div className="text-slate-400 font-medium font-sans">Catatan</div>
                 <div className="col-span-2 text-slate-300 text-xs">
-                  {transaksi.keterangan || "-"}
+                  {receiptIsCombined ? receiptTransactions.map((item) => item.keterangan).filter(Boolean).join(" - ") || "-" : receiptTransaction.keterangan || "-"}
                 </div>
               </div>
             </div>
@@ -401,7 +420,7 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
                 </p>
                 <p className="text-xs text-slate-400 font-sans font-semibold">Penerima,</p>
                 <div className="h-12 flex items-center justify-center">
-                  {transaksi.sisaTunggakan && transaksi.sisaTunggakan > 0 ? (
+                  {receiptHasOutstanding && !receiptIsCombined ? (
                     <span className="text-amber-500 font-mono font-semibold text-xs border border-amber-500/35 border-dashed px-2 py-1 rotate-[-2deg] rounded bg-amber-500/10 select-none">
                       {config.namaSekolah}
                     </span>
@@ -412,7 +431,7 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
                   )}
                 </div>
                 <p className="text-xs font-semibold text-white border-t border-white/10 pt-1">
-                  {transaksi.penerima}
+                  {receiptTransaction.penerima}
                 </p>
                 <p className="text-[10px] text-slate-400">Petugas Keuangan</p>
               </div>
@@ -454,8 +473,8 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
           fontSize: "76px",
           fontWeight: "900",
           fontFamily: "sans-serif",
-          color: transaksi.sisaTunggakan && transaksi.sisaTunggakan > 0 ? "rgba(220, 38, 38, 0.04)" : "rgba(16, 185, 129, 0.04)",
-          border: `10px dashed ${transaksi.sisaTunggakan && transaksi.sisaTunggakan > 0 ? "rgba(220, 38, 38, 0.05)" : "rgba(16, 185, 129, 0.05)"}`,
+          color: receiptHasOutstanding && !receiptIsCombined ? "rgba(220, 38, 38, 0.04)" : "rgba(16, 185, 129, 0.04)",
+          border: `10px dashed ${receiptHasOutstanding && !receiptIsCombined ? "rgba(220, 38, 38, 0.05)" : "rgba(16, 185, 129, 0.05)"}`,
           padding: "15px 35px",
           borderRadius: "20px",
           letterSpacing: "6px",
@@ -464,7 +483,7 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
           zIndex: 0,
           textTransform: "uppercase"
         }}>
-          {transaksi.sisaTunggakan && transaksi.sisaTunggakan > 0 ? "BELUM LUNAS" : "LUNAS"}
+          {receiptHasOutstanding && !receiptIsCombined ? "BELUM LUNAS" : "LUNAS"}
         </div>
 
         {/* Border Frame for Print */}
@@ -488,7 +507,7 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
             </div>
             <div style={{ textAlign: "right" }}>
               <h4 style={{ margin: 0, fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px" }}>BUKTI KUITANSI</h4>
-              <p style={{ margin: "5px 0 0 0", fontSize: "12px", fontFamily: "monospace" }}>No: {transaksi.id}</p>
+              <p style={{ margin: "5px 0 0 0", fontSize: "12px", fontFamily: "monospace" }}>No: {receiptTransaction.id}</p>
               <p style={{ margin: "3px 0 0 0", fontSize: "11px" }}>Tanggal: {selectedTanggal}</p>
             </div>
           </div>
@@ -500,45 +519,52 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
               <tbody>
                 <tr style={{ borderBottom: "1px solid #ddd" }}>
                   <td style={{ padding: "10px 0", width: "180px", color: "#555", fontWeight: "bold" }}>Sudah Diterima Dari</td>
-                  <td style={{ padding: "10px 0", fontWeight: "bold" }}>: {transaksi.siswaNama}</td>
+                  <td style={{ padding: "10px 0", fontWeight: "bold" }}>: {receiptTransaction.siswaNama}</td>
                 </tr>
                 <tr style={{ borderBottom: "1px solid #ddd" }}>
                   <td style={{ padding: "10px 0", color: "#555", fontWeight: "bold" }}>NIS / Kelas</td>
-                  <td style={{ padding: "10px 0", fontFamily: "monospace" }}>: {transaksi.siswaNis} / {transaksi.siswaKelas}</td>
+                  <td style={{ padding: "10px 0", fontFamily: "monospace" }}>: {receiptTransaction.siswaNis} / {receiptTransaction.siswaKelas}</td>
                 </tr>
                 <tr style={{ borderBottom: "1px solid #ddd" }}>
                   <td style={{ padding: "10px 0", color: "#555", fontWeight: "bold" }}>Untuk Pembayaran</td>
                   <td style={{ padding: "10px 0", fontWeight: "bold" }}>
-                    : {transaksi.jenisPembayaran} {transaksi.bulanCovered ? `(SPP Bulan ${formatBulanIndo(transaksi.bulanCovered)})` : ""}
+                    : {receiptPaymentLabel}
+                    {receiptIsCombined ? (
+                      <div style={{ marginTop: "6px", fontWeight: "normal", fontSize: "11px" }}>
+                        {receiptTransactions.map((item) => (
+                          <div key={item.id}>- {item.jenisPembayaran}{item.bulanCovered ? " - " + formatBulanIndo(item.bulanCovered) : ""} - {formatRupiah(item.jumlah)}</div>
+                        ))}
+                      </div>
+                    ) : receiptTransaction.bulanCovered ? " (SPP Bulan " + formatBulanIndo(receiptTransaction.bulanCovered) + ")" : ""}
                   </td>
                 </tr>
                 <tr style={{ borderBottom: "1px solid #ddd" }}>
                   <td style={{ padding: "10px 0", color: "#555", fontWeight: "bold" }}>Jumlah Uang Nominal</td>
                   <td style={{ padding: "10px 0" }}>
-                    {transaksi.sisaTunggakan && transaksi.sisaTunggakan > 0 ? (
+                    {receiptHasOutstanding && !receiptIsCombined ? (
                       <div>
-                        <div style={{ fontSize: "12px", color: "#555" }}>Nilai Tagihan Asli: <span style={{ fontFamily: "monospace" }}>: {formatRupiah(transaksi.originalTagihan || 0)}</span></div>
-                        <div style={{ fontWeight: "bold", fontSize: "16px", color: "#10b981", margin: "2px 0" }}>: Dibayar Sekarang: {formatRupiah(transaksi.jumlah)}</div>
-                        <div style={{ fontSize: "12px", color: "#ef4444", fontWeight: "bold" }}>: Sisa Tagihan: <span style={{ fontFamily: "monospace" }}>{formatRupiah(transaksi.sisaTunggakan)}</span></div>
+                        <div style={{ fontSize: "12px", color: "#555" }}>Nilai Tagihan Asli: <span style={{ fontFamily: "monospace" }}>: {formatRupiah(receiptTransaction.originalTagihan || 0)}</span></div>
+                        <div style={{ fontWeight: "bold", fontSize: "16px", color: "#10b981", margin: "2px 0" }}>: Dibayar Sekarang: {formatRupiah(receiptTotal)}</div>
+                        <div style={{ fontSize: "12px", color: "#ef4444", fontWeight: "bold" }}>: Sisa Tagihan: <span style={{ fontFamily: "monospace" }}>{formatRupiah(receiptTransaction.sisaTunggakan)}</span></div>
                       </div>
                     ) : (
-                      <span style={{ fontWeight: "bold", fontSize: "16px", color: "#111" }}>: {formatRupiah(transaksi.jumlah)}</span>
+                      <span style={{ fontWeight: "bold", fontSize: "16px", color: "#111" }}>: {formatRupiah(receiptTotal)}</span>
                     )}
                   </td>
                 </tr>
                 <tr style={{ borderBottom: "1px solid #ddd" }}>
                   <td style={{ padding: "10px 0", color: "#555", fontWeight: "bold", verticalAlign: "top" }}>Terbilang</td>
                   <td style={{ padding: "10px 0", fontStyle: "italic", backgroundColor: "#f9f9f9", textIndent: "5px" }}>
-                    : {terbilang(transaksi.jumlah)}
+                    : {terbilang(receiptTotal)}
                   </td>
                 </tr>
                 <tr style={{ borderBottom: "1px solid #ddd" }}>
                   <td style={{ padding: "10px 0", color: "#555", fontWeight: "bold" }}>Metode Bayar</td>
-                  <td style={{ padding: "10px 0" }}>: {transaksi.metode}</td>
+                  <td style={{ padding: "10px 0" }}>: {receiptIsCombined ? "Gabungan" : receiptTransaction.metode}</td>
                 </tr>
                 <tr>
                   <td style={{ padding: "10px 0", color: "#555", fontWeight: "bold" }}>Catatan</td>
-                  <td style={{ padding: "10px 0" }}>: {transaksi.keterangan || "-"}</td>
+                  <td style={{ padding: "10px 0" }}>: {receiptIsCombined ? receiptTransactions.map((item) => item.keterangan).filter(Boolean).join(" - ") || "-" : receiptTransaction.keterangan || "-"}</td>
                 </tr>
               </tbody>
             </table>
@@ -577,11 +603,11 @@ export default function ReceiptView({ transaksi, config, onClose }: ReceiptViewP
               <p style={{ margin: 0 }}>{selectedTempat}, {selectedTanggal.split(" ").slice(0, 3).join(" ")}</p>
               <p style={{ margin: "5px 0 0 0" }}>Petugas Keuangan,</p>
               <div style={{ height: "60px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ border: `2px solid ${transaksi.sisaTunggakan && transaksi.sisaTunggakan > 0 ? "#f59e0b" : "#555"}`, color: transaksi.sisaTunggakan && transaksi.sisaTunggakan > 0 ? "#d97706" : "#000", padding: "5px 12px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", opacity: 0.8, textTransform: "uppercase" }}>
-                  {transaksi.sisaTunggakan && transaksi.sisaTunggakan > 0 ? "BELUM LUNAS" : "LUNAS"}
+                <span style={{ border: `2px solid ${receiptHasOutstanding && !receiptIsCombined ? "#f59e0b" : "#555"}`, color: receiptHasOutstanding && !receiptIsCombined ? "#d97706" : "#000", padding: "5px 12px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold", opacity: 0.8, textTransform: "uppercase" }}>
+                  {receiptHasOutstanding && !receiptIsCombined ? "BELUM LUNAS" : "LUNAS"}
                 </span>
               </div>
-              <p style={{ margin: 0, fontWeight: "bold", borderTop: "1px solid #333", paddingTop: "5px" }}>{transaksi.penerima}</p>
+              <p style={{ margin: 0, fontWeight: "bold", borderTop: "1px solid #333", paddingTop: "5px" }}>{receiptTransaction.penerima}</p>
               <p style={{ margin: "2px 0 0 0", fontSize: "10px", color: "#555" }}>Administrasi Sekolah</p>
             </div>
           </div>
