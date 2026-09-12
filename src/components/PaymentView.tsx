@@ -52,12 +52,19 @@ export default function PaymentView({
 
   // Selected academic year (defaulting dynamically to current date's academic year)
   const [selectedTahunPelajaran, setSelectedTahunPelajaran] = useState<string>(() => {
+    if (config.tahunPelajaran) return config.tahunPelajaran;
     const today = new Date();
     const year = today.getFullYear();
     const month = today.getMonth() + 1;
-    const start = month >= 7 ? year : year - 1;
-    return `${start}/${start + 1}`;
+    const startYear = month >= 7 ? year : year - 1;
+    return startYear + "/" + (startYear + 1);
   });
+
+  useEffect(() => {
+    if (config.tahunPelajaran && config.tahunPelajaran !== selectedTahunPelajaran) {
+      setSelectedTahunPelajaran(config.tahunPelajaran);
+    }
+  }, [config.tahunPelajaran]);
 
   // Helper to dynamically look up the standard SPP rate from Manajemen Biaya (biayaList)
   const getSppTarifFromBiayaList = (): number => {
@@ -456,7 +463,8 @@ export default function PaymentView({
               </div>
             </div>
 
-            {/* Profile Grid SPP matrix */}
+            {/* Profile Grid SPP matrix hanya untuk kategori SPP */}
+            {jenisPembayaran === "SPP" && (
             <div className="p-5 space-y-4">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">Matriks Pelunasan SPP Th Pelajaran {selectedTahunPelajaran}</span>
@@ -533,6 +541,7 @@ export default function PaymentView({
               </div>
 
             </div>
+            )}
 
           </div>
         ) : (
@@ -676,7 +685,7 @@ export default function PaymentView({
                         }}
                         className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 text-white font-semibold rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                       >
-                        {DAFTAR_TAHUN_PELAJARAN.map((tp) => (
+                        {Array.from(new Set([config.tahunPelajaran, ...DAFTAR_TAHUN_PELAJARAN].filter(Boolean))).map((tp) => (
                           <option key={tp} value={tp} className="bg-slate-900 text-white">
                             Th Pelajaran {tp}
                           </option>
