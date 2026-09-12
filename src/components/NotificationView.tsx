@@ -179,7 +179,7 @@ export default function NotificationView({
 
   const [customMsgText, setCustomMsgText] = useState("");
 
-  const currentYearMonth = "2026-05"; // static baseline for the application's timeline
+  const currentYearMonth = new Date().toISOString().slice(0, 7);
 
   // Memoized: Find students who have unpaid bills
   const overdueUnpaidList = useMemo(() => {
@@ -429,53 +429,77 @@ export default function NotificationView({
     return [...notificationLogs].sort((a, b) => b.tanggalKirim.localeCompare(a.tanggalKirim));
   }, [notificationLogs]);
 
-  // Bulk trigger simulation
+  // Bulk trigger: email memakai mailto, WhatsApp membuka deep-link chat.
   const [bulkSending, setBulkSending] = useState(false);
+  const [bulkChannel, setBulkChannel] = useState<'Email' | 'WhatsApp'>('WhatsApp');
+
   const handleBulkSimulate = () => {
     if (overdueUnpaidList.length === 0) {
       alert("Tidak ada siswa dengan iuran tertunggak atau jatuh tempo!");
       return;
     }
 
-    if (!confirm(`Konfirmasi: Kirim notifikasi pengingat email otomatis secara massal ke ${overdueUnpaidList.length} orang tua siswa yang belum melunasi iuran?`)) {
+    const channelLabel = bulkChannel === "WhatsApp" ? "WhatsApp" : "email";
+    if (!confirm("Konfirmasi: siapkan pengingat " + channelLabel + " untuk " + overdueUnpaidList.length + " orang tua siswa yang belum melunasi iuran?")) {
       return;
     }
 
     setBulkSending(true);
     setTimeout(() => {
       let successCount = 0;
+      const whatsappUrls: string[] = [];
+      const selectedTemplate = templates.find((template) => template.type === bulkChannel);
+      const fallbackTemplate = bulkChannel === "WhatsApp" ? reminderConfig.waTemplate : reminderConfig.emailTemplate;
+      const messageTemplate = selectedTemplate?.content || fallbackTemplate;
+
       overdueUnpaidList.forEach((item, index) => {
         const siswa = item.siswa;
-        const parentEmail = siswa.emailOrangTua;
-        if (parentEmail && parentEmail !== "-") {
-          const unpaidFormat = item.tunggakanSppBulan.map(b => b).join(", ");
-          
-          let composed = reminderConfig.emailTemplate
-            .replace(/{nama_siswa}/g, siswa.nama)
-            .replace(/{kelas}/g, siswa.kelas)
-            .replace(/{nama_tagihan}/g, `Iuran SPP Periode (${unpaidFormat})`)
-            .replace(/{jumlah}/g, formatRupiah(item.totalTunggakanSpp))
-            .replace(/{tenggat}/g, "Satu minggu dari sekarang");
+        const rawContact = bulkChannel === "WhatsApp" ? (siswa.teleponOrangTua || "") : (siswa.emailOrangTua || "");
+        const contact = String(rawContact).trim();
+        if (!contact || contact === "-") return;
 
-          onAddLog({
-            id: `log-bulk-${Date.now()}-${index}`,
-            siswaId: siswa.id,
-            siswaNama: siswa.nama,
-            tipe: 'Email',
-            kontakTujuan: parentEmail,
-            pesan: composed,
-            tanggalKirim: new Date().toISOString().replace('T', ' ').substring(0, 19),
-            status: 'Sukses'
-          });
-          successCount++;
+        const unpaidFormat = item.tunggakanSppBulan.join(", ");
+        const composed = compileTemplate(
+          messageTemplate,
+          siswa,
+          "Iuran SPP Periode (" + unpaidFormat + ")",
+          item.totalTunggakanSpp,
+          "Satu minggu dari sekarang",
+          item.tunggakanSppBulan[item.tunggakanSppBulan.length - 1]
+        );
+
+        onAddLog({
+          id: "log-bulk-" + Date.now() + "-" + index,
+          siswaId: siswa.id,
+          siswaNama: siswa.nama,
+          tipe: bulkChannel,
+          kontakTujuan: contact,
+          pesan: composed,
+          tanggalKirim: new Date().toISOString().replace("T", " ").substring(0, 19),
+          status: "Sukses"
+        });
+        successCount++;
+
+        if (bulkChannel === "WhatsApp") {
+          let cleanPhone = contact.replace(/[^0-9]/g, "");
+          if (cleanPhone.startsWith("0")) cleanPhone = "62" + cleanPhone.slice(1);
+          whatsappUrls.push("https://api.whatsapp.com/send?phone=" + cleanPhone + "&text=" + encodeURIComponent(composed));
         }
       });
 
-      setBulkSending(false);
-      alert(`Sukses mengirimkan pengingat email otomatis massal ke ${successCount} orang tua/wali siswa! Log tercatat.`);
-    }, 1500);
-  };
+      if (bulkChannel === "WhatsApp") {
+        whatsappUrls.forEach((url, index) => {
+          window.setTimeout(() => window.open(url, "_blank"), index * 400);
+        });
+      }
 
+      setBulkSending(false);
+      alert(
+        "Berhasil menyiapkan " + channelLabel + " untuk " + successCount + " wali murid. " +
+        (bulkChannel === "WhatsApp" ? "Jika browser memblokir pop-up, gunakan tombol WA per siswa." : "Aplikasi email perangkat akan terbuka saat pengiriman individual.")
+      );
+    }, 500);
+  };
   return (
     <div className="space-y-6 animate-fade-in text-sm text-slate-100">
       
@@ -562,8 +586,19 @@ export default function NotificationView({
               <div className="p-4 bg-white/5 border border-white/5 rounded-xl space-y-3 mt-4 text-left">
                 <h5 className="font-bold text-blue-300 text-[11px] uppercase tracking-wide">Picu Pengingat Manual Massal</h5>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Kirimkan email tagihan pembayaran formal secara massal sekaligus ke semua kontak wali murid yang memiliki iuran terutang dalam satu klik.
+                  Pilih media pengiriman. WhatsApp akan membuka chat dengan pesan yang sudah terisi; email akan membuka aplikasi email perangkat.
                 </p>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-300 font-semibold">Media Pengiriman Massal</label>
+                  <select
+                    value={bulkChannel}
+                    onChange={(e) => setBulkChannel(e.target.value as 'Email' | 'WhatsApp')}
+                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-white/10 text-white rounded text-xs font-semibold"
+                  >
+                    <option value="WhatsApp" className="bg-slate-900 text-white">WhatsApp</option>
+                    <option value="Email" className="bg-slate-900 text-white">Email</option>
+                  </select>
+                </div>
                 <button
                   disabled={bulkSending || overdueUnpaidList.length === 0}
                   onClick={handleBulkSimulate}
@@ -574,7 +609,7 @@ export default function NotificationView({
                   ) : (
                     <Send className="size-3.5" />
                   )}
-                  <span>Kirim Pengingat Email Massal</span>
+                  <span>Kirim Pengingat {bulkChannel} Massal</span>
                 </button>
               </div>
 
