@@ -30,10 +30,13 @@ export interface Transaksi {
   penerima: string;
   originalTagihan?: number; // Jumlah tagihan asli sebelum dicicil/kurang
   sisaTunggakan?: number; // Sisa tunggakan yang belum dibayar
+  /** Baris transaksi yang dicetak bersama dalam satu kuitansi. */
+  transaksiGabungan?: Transaksi[];
 }
 
 export interface AppConfig {
   sheetUrl: string;
+  tahunPelajaran?: string;
   namaSekolah: string;
   alamatSekolah: string;
   teleponSekolah: string;
